@@ -1,0 +1,99 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[latin1]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage[textcolor=blue,textsize=tiny,backgroundcolor=white,bordercolor=blue]{todonotes}
+\newcommand{\VTNote}[1]{\todo{VT: #1}}
+\begin{document}
+	
+	\title{Examination of some variations and extensions of the VAULT verification protocol}
+	\author{Vanessa Teague}
+	\maketitle
+	
+	\section{Introduction}
+
+Vault electronically tabulates encrypted ballots, under the assumption that there are trustworthy paper records for each ballot. Each encrypted CVR, which may have multiple votes across multiple contests, is connected to a proof that each individual element is valid (i.e. within the permitted range for that contest).
+
+Vault is designed to interface with a ballot-level comparison RLA. When a paper ballot is selected for audit, its corresponding encrypted CVR is decrypted (or, equivalently, its commitments are open).
+	
+	Vault makes several important assumptions:
+	
+	\begin{itemize}
+		\item that the encrypted CVRs are disassociated from the voter who cast them,
+	\end{itemize}
+	
+	\section{Variation 1a: IRV}
+	This variation is already discussed in the VAULT paper. The paper assumes that a set of sufficient assertions is already known (for example, from RAIRE) and that the VAULT audit contains, for each encrypted CVR, a bit indicating whether the encrypted CVR makes a +1, 0 or -1 contribution to each assorter. This obviously assumes that all plaintext cvrs have been entered into RAIRE before VAULT tabulation begins.
+	
+	Some observations:
+	\begin{itemize}
+		\item It would be sound, though not necessarily efficient, to derive assertions by running RAIRE on a subset of ballots. The assertions may not be optimal (which is not guaranteed by RAIRE anyway) and indeed may not be true (if the subset is not representative), but the risk limit argument would still be sound.
+		
+		If the omitted ballots (i.e. the ones not used to calculate the RAIRE assertions) were only a small subset, and do not make a significant difference to the preference flows, this is likely to work well in practice. Obviously if they do make a signficant difference then this approach will not work---it may even be testing the wrong outcome.
+		
+		\item The only information on the BB about each vote, is
+		\begin{itemize}
+			\item for audited ballots, only the fact of which way it contributed to each assertion,
+			\item for non-audited ballots, nothing.
+		\end{itemize}
+	\end{itemize}
+
+    The advantage of this variation is that it provides a rigorous audit while revealing very little information about individual ballots. The disadvantage is that the audit may be highly inefficient if the offsite ballots change the preference flows.
+    
+    Another option is to send offshore votes in plaintext to the counties, for inclusion in the RAIRE computation. This would make the audit as efficient as any other RAIRE audit. The only remaining disadvantage would be the need to run RAIRE before VAULT tabulation.
+
+	\section{Variation 1b: audited-ballot full-disclosure IRV}	
+	The next alternative does not require RAIRE to be run before VAULT tabulation.
+	
+	Suppose (contrary to the VAULT paper) that encrypted-vote tabulation occurs as soon as votes are received, in some natural way such as simply writing the preferences on the BB as a list. Afterwards, at the county, all the (other) CVRs are tabulated, and RAIRE is run to generate assertions. We could even send the offsite CVRs in unencrypted form back to the counties, via an untrusted channel, to be included in RAIRE's input.
+	
+	If an offsite ballot was selected for RLA, the entire list of encrypted preferences would be opened on the BB and compared with the ballot paper, allowing the RLA statistics to be updated.
+	
+	\VTNote{It occurs to me that we are assuming that errors discovered at the central tabulation/auditing centre can be communicated to observers at the county in a verifiable fashion. Suggest putting them explicitly on the BB - this is independent of whether we're doing IRV.}
+	
+	The information on the BB about each vote, is
+	\begin{itemize}
+		\item for audited ballots, the complete list of preferences,
+		\item for non-audited ballots, nothing (except possibly the length of the preference list if this is evident from ciphertext(s)).
+	\end{itemize}
+	
+	The advantage of this method is that the audit is as efficient as any other RAIRE audit, without requiring RAIRE to be run before VAULT tabulation. The disadvantage is that complete individual ballots are revealed for audited ballots.
+	
+	As yet another variation, it is worth considering whether encrypted preference lists could be verifiably transformed into RAIRE assorter scores. That is, is there an algorithm which, given
+	\begin{itemize}
+		\item an encrypted preference list, and
+		\item a public list of RAIRE assorters
+	\end{itemize}
+    can verifiably compute the assorter bits used in Variation 1a?
+	
+	\section{Variation 2: Batches}
+	VAULT lends itself naturally to batch-level comparison audits. Since homomorphic tallies can be taken of any subset of a list of encrypted votes, we could simply mark (publicly) each vote's batch number on the VAULT BB. When a particular batch number was selected for audit, we would:
+	
+	\begin{itemize}
+		\item homomorphically aggregate and provably decrypt (or open commitments to) the tally (or tallies) for that batch,
+		\item manually retrieve the corresponding batch of ballot papers and count the tally.
+	\end{itemize}
+
+    The RLA computation could be performed directly on the resulting data.
+    
+    Since commitments are homomorphic in both their committed data and their opening parameters, an authority who knew the individual opening parameters could open the aggregate.
+	
+	\section{Variation 3: Mixing signed votes}
+	What if we started with a list of signed electronic votes, and then mixed them? Would this meet VAULT's assumption of disassociation?
+	
+	The hard part here is, when a ballot paper is selected for audit, how do we know which BB record it is? \VTNote{I assume someone else has thought this through, but I'm still confused.}
+	
+	The VAULT paper suggests printing commitment-opening parameters on the ballots---this is non-ideal for our use case because it means each vote has a unique number that may be associated with the voter. 
+	
+	Gotchas: 
+	\begin{itemize}
+		\item Not knowing the commitment openings after they've been rerandomised by multiple intermediaries. Solution is probably to use encryption rather than (perfectly hiding) commitments
+		\item Recognisability of ZKPs. The solution is probably simply to mix the vote data, but not the ZKPs. This would mean that we'd need to be careful to preserve the correct constraints across different contests.
+	\end{itemize} 
+
+   \section{Mixing and batching}
+   Need to be sure individual batches aren't identifiable post mix (e.g. through having different sizes). If all the offsite ballots are a single batch, then we may not need to mix - we can simply calculate the aggregate tally and never open any individual-vote values. 
+\end{document}
